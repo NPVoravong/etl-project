@@ -38,14 +38,14 @@ def getAuthor(url):
 
 def normalize_quotes_data(docs):
     quotes_table = []
-    authors = []
+    author_names = []
     authors_table = []
     tags_table = []
-    id = 1;
+    id = 1
     for doc in docs.find({}):
 #         print(f"normalizing the quote : [{doc['_id']}]")
         quote = {}
-#        quote['id'] = doc['_id'].str
+#        quote['id'] = doc['_id'].str #psycopg2 had trouble with ObjectId type, so I override it.
         quote['id'] = id
         id += 1
         quote['text'] = doc['text']
@@ -56,9 +56,9 @@ def normalize_quotes_data(docs):
         author['name'] = doc['author']['name']
         author['born'] =  doc['author']['born']
         author['description'] = doc['author']['description']
-        if (author['name'] not in authors):
+        if (author['name'] not in author_names):
             authors_table.append(author)
-            authors.append(author['name'])
+            author_names.append(author['name'])
 
         for tag in doc['tags']:
             tags_table.append({'quote_id':quote['id'] , 'tag' : tag})    
@@ -69,6 +69,7 @@ def migrate():
     mongoQuotes = db.quotes
     print(f' found {mongoQuotes.count_documents({})} documents')
   
+    #Separate MongoDB docs into quotes, authors, and tag tables for Postgres
     (quotes , authors ,tags) = normalize_quotes_data(mongoQuotes)
     quotes_df = pd.DataFrame(quotes)
     author_df = pd.DataFrame(authors)
@@ -100,7 +101,8 @@ def migrate():
             'tags' : tags_script.strip(),
             'author' : author_script.strip()
             } 
-            
+
+    #Design and create in Postgres the three tables needed for quotes, authors, and tags        
     for table in tables.keys():
         print(f'dropping the table {table} if it already exists...')
         engine.execute(f'drop table IF EXISTS {table}') 
@@ -109,8 +111,10 @@ def migrate():
         print(f'creating the table {table}...')
         engine.execute(f'{script}')
     
+    #Confirm tables are created in Postgress
     print(engine.table_names())  
-        
+    
+    #Send MongoDB data to Postgres
     quotes_df.to_sql(name='quotes', con=engine, if_exists='append', index=False)  
     tags_df.to_sql(name='tags', con=engine, if_exists='append', index=False)  
     author_df.to_sql(name='author', con=engine, if_exists='append', index=False)
