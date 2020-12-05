@@ -4,84 +4,54 @@ import sqlalchemy
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func
+import psycopg2
 
 
 #Connect to the Postgres Database
-conn = "postgres:postgres@localhost:5432/xxxxxxxxxxxxxxxx"
-engine = create_engine(f'postgresql://{conn}')
+engine = create_engine('postgres://zkhlwdmsqfzuhu:9672f3ba7f960cab4d0e96fd60fef1ee18058d7076777bb99e80c53a54e69513@ec2-52-22-238-188.compute-1.amazonaws.com:5432/d87t3tjj770omk')
 
-# reflect an existing database into a new model
-Base = automap_base()
-
-# reflect the tables
-Base.prepare(engine, reflect=True)
-
-# Save reference to the table
-a = Base.classes.Author
-q = Base.classes.Quotes
-t = Base.classes.Tags
-
-# Create a database session object
-session = Session(engine)
-
-
-
+#Start of Flask
 app = Flask(__name__)
 
 @app.route("/")
 def home():
     return(
         f"Available Routes:<br/>"
-        f"/api/v1.0/quotes<br/>"
+        f"/info/quotes<br/>"
         f"/api/v1.0/authors<br/>"
         f"/api/v1.0/authors/<author_name><br/>"
         f"/api/v1.0/tags<br/>"
         f"/api/v1.0/tags/<tag><br/>"
-        f"/api/v1.0/top10tags"
+        f"/info/top10tags"
     )
 
-@app.route("/quotes")
-def quote():
-    total_quotes = session.query(func.count(q.Quotes)).first()[0]
-    quote = session.query(q.quote_text).all()
-    author_name = session.query(a.name).all()
-    tag = session.query(t.tag).all()
-
-    return jsonify(Quotes = {
-           "Total" : total_quotes,
-           "Quotes":[
-               {
-                   "Text" : quote,
-                   "Name" : author_name,
-                   "Tags" : tag
-               }
-           ]
-        }
-    )
+@app.route("/info/quotes")
+def quotes():
+    result = {}
+    result_set = engine.execute('''select id, author_name, text
+    from quotes q inner join author a on q.author_name = a.name
+    order by id''')
+    total_quotes = result_set.rowcount
+    quotes = []
+    for row in result_set:
+        quote = {}
+        quote['text'] = row.text
+        quote['author'] = row.author_name
+        tags = []
+        tags_result = engine.execute(
+            f'select tag  from tags where quote_id= {row.id}')
+        for tagrow in tags_result:
+            tags.append(tagrow.tag)
+        quote['tags'] = tags
+        quotes.append(quote)
+    result['quotes'] = quotes
+    result['total'] = total_quotes
+    return jsonify(result)
 
 @app.route("/author")
 def author():
-    total_authors = session.query(func.count(a.id)).first()[0]
-    author_name = session.query(a.name).all()
-    description = session.query(a.description).all()
-    birth = session.query(a.birthdate).all()
-    # count = session.query(func.count())
 
-    return jsonify(Author = {
-        "Total" : total_authors,
-        "Details" : [
-            {
-                "Name" : author_name,
-                "Description" : description,
-                "Born" : birth,
-                # "Count" : 
-            }
-        ]
-
-    } 
-    )
       
-
 # @app.route("/authors/<author_name>")
 # def author_name():
 #     return()
@@ -94,14 +64,14 @@ def author():
 # def tags():
 #     return()
 
-@app.route("/top10tags")
+@app.route("/info/top10tags")
 def top_ten():
 
-    top_quotes = session.query(func.count(t.quote_id)).group_by(t.tag)\
-        .order_by(func.count(t.quote_id).desc()).limit(10).all()
+    top_tags = engine.execute('select tag from quotes as q inner join tags as t on t.quote_id = q.id group by tag order by count(text) desc limit 10').fetchall()
+
 
     return jsonify(
-        {"Top 10 Tags" : list(np.ravel(top_quotes))}
+        {"Top 10 Tags" : list(np.ravel(top_tags))}
     )
 
 if __name__ == '__main__':
