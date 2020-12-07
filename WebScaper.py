@@ -76,10 +76,11 @@ def migrate():
     tags_df = pd.DataFrame(tags)
 
     #POSTGRES connection settings
-    user_name = 'postgres'
-    password = 'postgres'
-    connection_string = f"{user_name}:{password}@localhost:5432/ETL_Project"
-    engine = create_engine(f'postgresql://{connection_string}')  
+    # user_name = 'postgres'
+    # password = 'postgres'
+    # connection_string = f"{user_name}:{password}@localhost:5432/quotes_db"
+    # engine = create_engine(f'postgresql://{connection_string}')  
+    engine = create_engine('postgres://zkhlwdmsqfzuhu:9672f3ba7f960cab4d0e96fd60fef1ee18058d7076777bb99e80c53a54e69513@ec2-52-22-238-188.compute-1.amazonaws.com:5432/d87t3tjj770omk')
 
     quotes_script = '''
         create table quotes(     id INTEGER PRIMARY KEY,    
